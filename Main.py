@@ -9,7 +9,7 @@ Finally, the 'start_app' method of the 'Application' object
 is called to start the GUI application and display the data in a window.
 """
 from App import Application
-from DBConnection import Database as db
+from DB import Database as db
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData
 import dearpygui.dearpygui as dpg
 import pyodbc

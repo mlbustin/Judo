@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 
-class Database:
+class UserDB:
     def __init__(self, db_uri):
         self.engine = create_engine(db_uri, echo=False)
         self.Base = declarative_base()
@@ -14,29 +14,41 @@ class Database:
             name = Column(String)
             age = Column(Integer)
 
+        self.User = User
         self.Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
-        self.db = self.Session()
+
+        Session = sessionmaker(bind=self.engine)
+        self.session = Session()
 
     def create_user(self, name, age):
-        user = self.db.User(name=name, age=age)
-        self.db.add(user)
-        self.db.commit()
+        user = self.User(name=name, age=age)
+        self.session.add(user)
+        self.session.commit()
 
     def read_user(self, user_id):
-        user = self.db.query(self.Base.User).filter_by(id=user_id).first()
-        print(user.name, user.age)
+        user = self.session.query(self.User).filter_by(id=user_id).first()
+        print(user.name, user.age) if user else print("User not found")
         return user
 
     def update_user(self, user_id, name=None, age=None):
-        user = self.db.query(self.Base.User).get(user_id)
-        if name:
-            user.name = name
-        if age:
-            user.age = age
-        self.db.commit()
+        user = self.session.query(self.User).get(user_id)
+        print("User not found") if not user else (
+            setattr(user, 'name', name) if name else None, setattr(user, 'age', age) if age else None,
+            self.session.commit())
 
     def delete_user(self, user_id):
-        user = self.db.query(self.Base.User).get(user_id)
-        self.db.delete(user)
-        self.db.commit()
+        user = self.read_user(user_id)
+        if user:
+            self.session.delete(user)
+            self.session.commit()
+        else:
+            print("User not found")
+
+    def check_user(self, user_id=None, name=None, age=None):
+        user = self.session.query(self.User).get(user_id) if user_id else self.session.query(
+            self.User).filter_by(name=name).filter_by(age=age).all() if name and age else self.session.query(
+            self.User).filter_by(name=name).all() if name else self.session.query(self.User).filter_by(
+            age=age).all() if age else None
+        print("User not found") if not user else \
+            (print(user.name, user.age) if isinstance(user, self.User) else [print(u.name, u.age) for u in user], user)[
+                1] if user else None

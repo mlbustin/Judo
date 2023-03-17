@@ -17,36 +17,37 @@ Once the application is finished, the 'destroy_context' function is called
 to clean up any resources used by the Dear PyGui library.
 """
 import dearpygui.dearpygui as dpg
-from DBConnection import Database
+from DB import Database as db
 import pyodbc
+
+connection_string = "mssql+pyodbc://localhost/Judo?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 
 
 class Application:
     def __init__(self):
         self.font_pt_mono_h = ""
         self.font_pt_mono_p = ""
-        self.db = Database()
+        self.db = db.UserDB(connection_string)
 
+    # Back-End functions
     def login(self):
         name, password = dpg.get_value("username_input"), dpg.get_value("password_input")
-        if name and password != "":
-            if self.db.check_user_contain(username=name):
-                print(True)
+        if name or password != "":
+            self.db.check_user(name=name, age=password)
 
     def signup(self):
         name, age, = dpg.get_value("reg_username_input"), dpg.get_value("reg_age_input")
         password, confirm_password = dpg.get_value("reg_password_input"), dpg.get_value("reg_confirm_password_input")
 
-        print(name, age, password, confirm_password)
-
-        if self.db.check_user_contain(username=name):
-            print("Такое имя уже существует")
+        if self.db.check_user(name=name, age=age):
+            print("This user already exists")
+        elif password != confirm_password:
+            print("Passwords do not match")
         else:
-            self.db.add_user(name, age)
+            self.db.create_user(name=name, age=age)
+            print("User created successfully")
 
-        if password != confirm_password:
-            print("Пароли не совпадают")
-
+    # Front-End functions
     def reg_fonts(self):
         with dpg.font_registry():
             self.font_pt_mono_h = dpg.add_font("src/fonts/PTMono-Regular.ttf", 22)
