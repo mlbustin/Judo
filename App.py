@@ -17,37 +17,37 @@ Once the application is finished, the 'destroy_context' function is called
 to clean up any resources used by the Dear PyGui library.
 """
 import dearpygui.dearpygui as dpg
+import logging
 from DB import Database as db
-import pyodbc
 
 connection_string = "mssql+pyodbc://localhost/Judo?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 
 
-class Application:
+class Database:
+    def __init__(self, url):
+        self.DB = db.UserDB(url)
+
+    def signup(self):
+        username, password, confirm_password, age = dpg.get_value("reg_username"), dpg.get_value("reg_password"), \
+                                                    dpg.get_value("reg_confirm_password"), dpg.get_value("reg_age")
+
+        self.DB.create_user(name=username, password=password, age=age) if password == confirm_password \
+            else logging.warning("Passwords do not match")
+
+    def login(self, username, password):
+        return True if self.DB.check_user(username, password) else False
+
+
+class GUI:
     def __init__(self):
         self.font_pt_mono_h = ""
         self.font_pt_mono_p = ""
-        self.db = db.UserDB(connection_string)
 
-    # Back-End functions
-    def login(self):
-        name, password = dpg.get_value("username_input"), dpg.get_value("password_input")
-        if name or password != "":
-            self.db.check_user(name=name, age=password)
+        self.login_window = LoginWindow(self)
+        self.signup_window = SignupWindow(self)
+        self.current_window = None
+        self.database = Database(connection_string)
 
-    def signup(self):
-        name, age, = dpg.get_value("reg_username_input"), dpg.get_value("reg_age_input")
-        password, confirm_password = dpg.get_value("reg_password_input"), dpg.get_value("reg_confirm_password_input")
-
-        if self.db.check_user(name=name, age=age):
-            print("This user already exists")
-        elif password != confirm_password:
-            print("Passwords do not match")
-        else:
-            self.db.create_user(name=name, age=age)
-            print("User created successfully")
-
-    # Front-End functions
     def reg_fonts(self):
         with dpg.font_registry():
             self.font_pt_mono_h = dpg.add_font("src/fonts/PTMono-Regular.ttf", 22)
@@ -55,62 +55,77 @@ class Application:
 
             dpg.bind_font(self.font_pt_mono_p)
 
-    def open_reg_window(self, sender, data):
-        window = dpg.get_item_parent(dpg.get_item_parent(sender))
-
-        with dpg.window(tag="RegWindow", label="Registration Window"):
-            label = dpg.add_text("Registration new account")
-            dpg.bind_item_font(label, self.font_pt_mono_h)
-
-            with dpg.child_window(label="Reg"):
-                dpg.add_input_text(tag="reg_username_input",
-                                   label="Name",
-                                   hint="Enter your name...",
-                                   on_enter=True)
-                dpg.add_input_int(tag="reg_age_input",
-                                  label="Age")
-                dpg.add_input_text(tag="reg_password_input",
-                                   label="Password",
-                                   hint="Create new password...",
-                                   on_enter=True)
-                dpg.add_input_text(tag="reg_confirm_password_input",
-                                   label="Confirm password",
-                                   hint="Confirm password ...",
-                                   on_enter=True)
-                dpg.add_button(label="Create", callback=self.signup)
-
-        dpg.delete_item(window)
-        dpg.set_primary_window("RegWindow", True)
-
-    def start_app(self):
+    def run(self):
         dpg.create_context()
 
         self.reg_fonts()
+        self.login_window.run()
 
-        with dpg.window(tag="MainWindow", label="Judo Manager"):
+        dpg.create_viewport(title="Judo", width=800, height=600)
+        dpg.setup_dearpygui()
+        dpg.show_viewport()
+        dpg.set_primary_window("LoginWindow", True)
+        dpg.start_dearpygui()
+        dpg.destroy_context()
+
+
+class LoginWindow:
+    def __init__(self, base):
+        self.base = base
+
+    def run(self):
+        with dpg.window(tag="LoginWindow", label="Judo Manager"):
             label = dpg.add_text("log in to the system")
-            dpg.bind_item_font(label, self.font_pt_mono_h)
+            dpg.bind_item_font(label, self.base.font_pt_mono_h)
 
             with dpg.child_window(label="Auth"):
                 dpg.add_input_text(tag="username_input",
-                                   label="You name",
                                    hint="Username or email...",
                                    on_enter=True,
-                                   callback=self.login)
+                                   callback=self.base.database.login)
                 dpg.add_input_text(tag="password_input",
-                                   label="You password",
                                    hint="Password...",
-                                   password=True,
                                    on_enter=True,
-                                   callback=self.login)
-                dpg.add_button(label="Log In", callback=self.login)
+                                   password=True,
+                                   callback=self.base.database.login)
+                dpg.add_button(label="Log In", callback=self.base.database.login)
                 dpg.add_spacer(height=5)
                 dpg.add_button(label="Create Account",
-                               callback=self.open_reg_window)
+                               callback=self.base.signup_window.run)
 
-        dpg.create_viewport(title="MainWindow", width=600, height=300)
-        dpg.setup_dearpygui()
-        dpg.show_viewport()
-        dpg.set_primary_window("MainWindow", True)
-        dpg.start_dearpygui()
-        dpg.destroy_context()
+        dpg.delete_item(self.base.current_window) if self.base.current_window else None
+        self.base.current_window = "LoginWindow"
+        dpg.set_primary_window("LoginWindow", True)
+
+
+class SignupWindow:
+    def __init__(self, base):
+        self.base = base
+
+    def run(self):
+        with dpg.window(tag="RegWindow", label="Registration Window"):
+            label = dpg.add_text("Registration new account")
+            dpg.bind_item_font(label, self.base.font_pt_mono_h)
+
+            with dpg.child_window(label="Reg"):
+                dpg.add_input_text(tag="reg_username",
+                                   hint="Enter your name...",
+                                   on_enter=True)
+                dpg.add_input_int(tag="reg_age")
+                dpg.add_input_text(tag="reg_password",
+                                   hint="Create new password...",
+                                   on_enter=True)
+                dpg.add_input_text(tag="reg_confirm_password",
+                                   hint="Confirm password ...",
+                                   on_enter=True)
+                dpg.add_button(label="Create", callback=self.base.database.signup)
+                dpg.add_spacer(height=5)
+                dpg.add_button(label="Cancel", callback=self.base.login_window.run)
+
+        dpg.delete_item(self.base.current_window) if self.base.current_window else None
+        self.base.current_window = "RegWindow"
+        dpg.set_primary_window("RegWindow", True)
+
+
+Application = GUI()
+Application.run()

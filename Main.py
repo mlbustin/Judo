@@ -8,12 +8,12 @@ to create an instance of the Application class.
 Finally, the 'start_app' method of the 'Application' object
 is called to start the GUI application and display the data in a window.
 """
-from App import Application
+from App import GUI
 from DB import Database as db
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData
 import dearpygui.dearpygui as dpg
 import pyodbc
 
-App = Application()
+App = GUI()
 
-App.start_app()
+App.run()
