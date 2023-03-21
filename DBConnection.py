@@ -10,21 +10,10 @@ from DB import Database as db
 
 connection_string = "mssql+pyodbc://localhost/Judo?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 
-user_db = db.Database(connection_string)
+from DB.Database import UserDB
 
-# Создадим нового пользователя
+user_db = UserDB(connection_string)
 user_db.create_user("John Doe", 25)
-
-# Получим информацию о пользователе
-user = user_db.read_user(1)
-print(user.name, user.age)
-
-# Обновим информацию о пользователе
-user_db.update_user(1, name="Jane Doe")
-user = user_db.read_user(1)
-print(user.name, user.age)
-
-# Удалим пользователя
+user_db.read_user(19)
+user_db.update_user(19, name="Jane Jane")
 user_db.delete_user(1)
-user = user_db.read_user(1) # вернет None, так как пользователь был удален
-print(user)
