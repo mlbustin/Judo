@@ -19,12 +19,15 @@ to clean up any resources used by the Dear PyGui library.
 import dearpygui.dearpygui as dpg
 import logging
 from DB import Database as db
+from api import *
+import threading as tr
 
 connection_string = "mssql+pyodbc://localhost/Judo?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 
 
 class Database:
-    def __init__(self, url):
+    def __init__(self, url, base):
+        self.base = base
         self.DB = db.UserDB(url)
 
     def signup(self):
@@ -35,18 +38,44 @@ class Database:
             else logging.warning("Passwords do not match")
 
     def login(self, username, password):
-        return True if self.DB.check_user(username, password) else False
+        if username and password:
+            self.base.user = self.DB.get_user(username, password)
+            if self.base.user:
+                self.base.main_window.run(self.base.user)
+        else:
+            username, password = dpg.get_value("login_username"), dpg.get_value("login_password")
+            if username and password:
+                self.base.user = self.DB.get_user(username, password)
+                if self.base.user:
+                    self.base.main_window.run(self.base.user)
+
+    def update(self):
+        username, age, password = dpg.get_value("setting_username"), \
+                                  dpg.get_value("setting_age"), \
+                                  dpg.get_value("setting_password")
+        self.DB.update_user(self.base.user[0].id, username, age, password)
+        self.login(username=username, password=password)
 
 
 class GUI:
     def __init__(self):
+        # Fonts
         self.font_pt_mono_h = ""
         self.font_pt_mono_p = ""
 
+        # Windows
         self.login_window = LoginWindow(self)
         self.signup_window = SignupWindow(self)
+        self.main_window = MainWindow(self, None)
+        self.settings_window = SettingsWindow(self)
         self.current_window = None
-        self.database = Database(connection_string)
+
+        # Database
+        self.database = Database(connection_string, self)
+
+        # Server
+        self.server = Server("192.168.1.4", 12345)
+        self.server_thread = tr.Thread(target=self.server.start)
 
     def reg_fonts(self):
         with dpg.font_registry():
@@ -60,6 +89,8 @@ class GUI:
 
         self.reg_fonts()
         self.login_window.run()
+
+        self.server_thread.start()
 
         dpg.create_viewport(title="Judo", width=800, height=600)
         dpg.setup_dearpygui()
@@ -79,16 +110,20 @@ class LoginWindow:
             dpg.bind_item_font(label, self.base.font_pt_mono_h)
 
             with dpg.child_window(label="Auth"):
-                dpg.add_input_text(tag="username_input",
+                dpg.add_input_text(tag="login_username",
                                    hint="Username or email...",
                                    on_enter=True,
-                                   callback=self.base.database.login)
-                dpg.add_input_text(tag="password_input",
+                                   callback=self.base.database.login,
+                                   user_data=self.base)
+                dpg.add_input_text(tag="login_password",
                                    hint="Password...",
                                    on_enter=True,
                                    password=True,
-                                   callback=self.base.database.login)
-                dpg.add_button(label="Log In", callback=self.base.database.login)
+                                   callback=self.base.database.login,
+                                   user_data=self.base)
+                dpg.add_button(label="Log In",
+                               callback=self.base.database.login,
+                               user_data=self.base)
                 dpg.add_spacer(height=5)
                 dpg.add_button(label="Create Account",
                                callback=self.base.signup_window.run)
@@ -127,5 +162,50 @@ class SignupWindow:
         dpg.set_primary_window("RegWindow", True)
 
 
-Application = GUI()
-Application.run()
+class MainWindow:
+    def __init__(self, base, user=None):
+        self.base = base
+        self.user = user
+
+    def run(self, user=None):
+        self.user = user if user else None
+
+        with dpg.window(tag="MainWindow", label="Judo Manager"):
+            label = dpg.add_text(f"Welcome {self.user[0].name} to Judo Manager")
+            dpg.bind_item_font(label, self.base.font_pt_mono_h)
+
+            with dpg.child_window(label="Main"):
+                dpg.add_button(label="Account settings", callback=self.base.settings_window.run)
+                dpg.add_spacer(height=5)
+
+        dpg.delete_item(self.base.current_window) if self.base.current_window else None
+        self.base.current_window = "MainWindow"
+        dpg.set_primary_window("MainWindow", True)
+
+
+class SettingsWindow:
+    def __init__(self, base):
+        self.base = base
+
+    def run(self):
+        with dpg.window(tag="SettingsWindow", label="Judo Manager"):
+            label = dpg.add_text(f"Settings for {self.base.user[0].name}")
+            dpg.bind_item_font(label, self.base.font_pt_mono_h)
+
+            with dpg.child_window(label="Settings"):
+                dpg.add_input_text(tag="settings_username",
+                                   hint=f'{self.base.user[0].name}',
+                                   on_enter=True,
+                                   label="Username")
+                dpg.add_input_int(tag="settings_age",
+                                  label="Age")
+                dpg.add_input_text(tag="settings_password",
+                                   hint=f'{self.base.user[0].password}',
+                                   on_enter=True,
+                                   label="Password")
+                dpg.add_spacer(height=5)
+                dpg.add_button(label="Save", callback=self.base.database.update)
+
+        dpg.delete_item(self.base.current_window) if self.base.current_window else None
+        self.base.current_window = "SettingsWindow"
+        dpg.set_primary_window("SettingsWindow", True)

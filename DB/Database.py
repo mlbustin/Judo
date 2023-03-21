@@ -50,12 +50,26 @@ class UserDB:
         else:
             print("User not found")
 
-    def check_user(self, user_id=None, name=None, age=None):
+    def check_user(self, user_id=None, name=None, age=None, password=None):
         user = self.session.query(self.User).get(user_id) if user_id else self.session.query(
-            self.User).filter_by(name=name).filter_by(age=age).all() if name and age else self.session.query(
-            self.User).filter_by(name=name).all() if name else self.session.query(self.User).filter_by(
-            age=age).all() if age else None
+            self.User).filter_by(name=name).filter_by(age=age).filter_by(
+            password=password).all() if name and age and password else \
+            self.session.query(self.User).filter_by(name=name).filter_by(
+                password=password).all() if name and password else \
+                self.session.query(self.User).filter_by(age=age).filter_by(
+                    password=password).all() if age and password else \
+                    self.session.query(self.User).filter_by(name=name).all() if name else self.session.query(
+                        self.User).filter_by(
+                        age=age).all() if age else None
         print("User not found") if not user else \
-            (print(user.name, user.age) if isinstance(user, self.User) else [print(u.name, u.age)for u in user], user)[
+            (print(user.name, user.age) if isinstance(user, self.User) else [print(u.name, u.age) for u in user], user)[
+                1] if user else None
+        return user
+
+    def get_user(self, name, password):
+        user = self.session.query(self.User).filter_by(name=name).filter_by(
+            password=password).all() if name and password else None
+        print("User not found") if not user else \
+            (print(user.name, user.age) if isinstance(user, self.User) else [print(u.name, u.age) for u in user], user)[
                 1] if user else None
         return user
